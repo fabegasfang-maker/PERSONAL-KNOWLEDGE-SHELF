@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
@@ -344,11 +344,11 @@
   .reader-close svg { width:18px; height:18px; }
   .reader-body {
     flex:1; background:var(--paper-2);
-    display:flex; justify-content:center; padding:0; /* changed padding to 0 for iframe */
+    display:flex; justify-content:center; padding:0;
     position: relative;
   }
   .reader-footer {
-    display:none; /* hidden because iframe has its own controls */
+    display:none;
   }
 
   @media (max-width:820px){
@@ -397,8 +397,7 @@
         <p class="lede">รวมไฟล์สรุปความรู้ที่คุณเคยเจอ ไม่ว่าจะเป็นสไลด์คอร์ส บทสรุปหนังสือ หรือโน้ตส่วนตัว จัดหมวดให้หาเจอง่าย พร้อมพรีวิวหน้าที่คุณเลือกไว้เอง เหมือนมีชั้นหนังสือส่วนตัวที่ค้นได้ในคลิกเดียว</p>
         <div class="hero-stats">
           <div class="stat"><b id="statTotal">—</b><span>ไฟล์ทั้งหมด</span></div>
-          <div class="stat"><b>6</b><span>หมวดหมู่</span></div>
-          
+          <div class="stat"><b id="statCats">6</b><span>หมวดหมู่</span></div>
         </div>
       </div>
       <div class="stack">
@@ -502,9 +501,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
       </button>
     </div>
-    <div class="reader-body" id="readerBody">
-      <!-- Iframe will be injected here -->
-    </div>
+    <div class="reader-body" id="readerBody"></div>
     <div class="reader-footer" style="display:none;">
       <button class="pager-btn" id="readerPrev" title="หน้าก่อนหน้า">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
@@ -523,7 +520,6 @@ if (window['pdfjsLib']) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 }
 
-// ⚠️ เปลี่ยน URL ด้านล่างให้เป็น URL ของ Google Apps Script ที่คุณ Deploy
 const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyUs6JmtPMqSgWJ5r-y_JrEtLqn0vwHIlZTnL6aYggBO7rPFuJMOlu2M_GKFFttPRstCg/exec";
 
 const CATS = {
@@ -596,6 +592,9 @@ function render() {
 
   document.getElementById('countTag').textContent = filtered.length + ' รายการ';
   document.getElementById('statTotal').textContent = files.length;
+  if (document.getElementById('statCats')) {
+    document.getElementById('statCats').textContent = Object.keys(CATS).length;
+  }
 
   grid.innerHTML = '';
   if (filtered.length === 0) { empty.style.display = 'block'; return; }
@@ -646,6 +645,7 @@ function renderManageList() {
     const row = document.createElement('div');
     row.className = 'manage-row';
     const catOptions = Object.entries(CATS).map(([k, v]) => `<option value="${k}" ${k === f.cat ? 'selected' : ''}>${v.label}</option>`).join('');
+    
     row.innerHTML = `
       <div class="thumb-mini" data-thumb></div>
       <div class="manage-info">
@@ -658,6 +658,7 @@ function renderManageList() {
       </div>
       <div>
         <div class="pager-hint">รูปปกถูกสร้างอัตโนมัติจาก Google Drive</div>
+        <div data-label style="display:none;"></div>
       </div>
       <div class="row-actions">
         <button class="save-btn" data-save title="บันทึกการเปลี่ยนแปลง">
@@ -682,7 +683,9 @@ function renderManageList() {
         img.src = url;
         thumbBox.appendChild(img);
       });
-      label.textContent = `หน้า ${f.previewPage} / ${f.pages}`;
+      if (label) {
+        label.textContent = `ไฟล์ Google Drive`;
+      }
     }
     refreshThumb();
 
@@ -703,7 +706,7 @@ function renderManageList() {
         const result = await res.json();
         if(result.success) {
           status.textContent = "✓ บันทึกแล้ว";
-          render(); // re-render grid
+          render();
           setTimeout(() => status.textContent = "", 2000);
         } else {
           status.textContent = "❌ ไม่สำเร็จ";
@@ -719,7 +722,6 @@ function renderManageList() {
 
     row.querySelector('[data-cat-select]').addEventListener('change', (e) => {
       f.cat = e.target.value;
-      render();
     });
 
     row.querySelector('[data-save]').addEventListener('click', saveCategory);
@@ -813,19 +815,13 @@ function openReader(fileId) {
   document.body.style.overflow = 'hidden';
   
   const body = document.getElementById('readerBody');
-  // Loading state
   body.innerHTML = '<div style="margin:auto; font-family:\'Space Mono\', monospace; color:var(--ink-soft);">กำลังเชื่อมต่อ Google Drive...</div>';
 
-  // Use Google Drive Preview Iframe
   const iframe = document.createElement('iframe');
   iframe.src = `https://drive.google.com/file/d/${file.id}/preview`;
   iframe.style.width = '100%';
   iframe.style.height = '100%';
   iframe.style.border = 'none';
-  
-  iframe.onload = () => {
-    // Iframe loaded
-  };
   
   body.innerHTML = '';
   body.appendChild(iframe);
@@ -834,7 +830,7 @@ function openReader(fileId) {
 function closeReader() {
   document.getElementById('readerModal').classList.remove('active');
   document.body.style.overflow = '';
-  document.getElementById('readerBody').innerHTML = ''; // clear iframe
+  document.getElementById('readerBody').innerHTML = '';
 }
 
 const dropZone = document.getElementById('dropZone');
